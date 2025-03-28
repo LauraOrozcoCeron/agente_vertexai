@@ -8,3 +8,7 @@
 # Archivos de entorno
 .env
 .env.*
+/venv/
+
+# Base de datos de Chroma
+data/chroma_db/
