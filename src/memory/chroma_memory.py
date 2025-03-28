@@ -1,4 +1,4 @@
-from chromadb import Client, Settings
+from chromadb import PersistentClient
 from chromadb.utils import embedding_functions
 import os
 from typing import List, Dict, Any
@@ -7,14 +7,11 @@ import json
 class ChromaMemory:
     def __init__(self, collection_name: str = "taxi_chat_history"):
         # Crear directorio para la base de datos si no existe
-        os.makedirs("./data/chroma_db", exist_ok=True)
+        self.persist_dir = "./data/chroma_db"
+        os.makedirs(self.persist_dir, exist_ok=True)
         
-        # Inicializar el cliente de Chroma con configuración local
-        self.client = Client(Settings(
-            chroma_db_impl="duckdb+parquet",  # Usar implementación local
-            persist_directory="./data/chroma_db",
-            anonymized_telemetry=False
-        ))
+        # Inicializar el cliente de Chroma con la nueva configuración
+        self.client = PersistentClient(path=self.persist_dir)
         
         # Usar sentence-transformers para embeddings
         self.embedding_function = embedding_functions.SentenceTransformerEmbeddingFunction(
@@ -26,7 +23,7 @@ class ChromaMemory:
             self.collection = self.client.get_or_create_collection(
                 name=collection_name,
                 embedding_function=self.embedding_function,
-                metadata={"hnsw:space": "cosine"}  # Usar distancia coseno para similitud
+                metadata={"hnsw:space": "cosine"}
             )
         except Exception as e:
             print(f"Error inicializando colección: {str(e)}")
@@ -49,9 +46,6 @@ class ChromaMemory:
                 metadatas=[metadata or {}],
                 ids=[interaction_id]
             )
-            
-            # Persistir cambios
-            self.client.persist()
         except Exception as e:
             print(f"Error agregando a memoria: {str(e)}")
     
@@ -95,6 +89,5 @@ class ChromaMemory:
                 embedding_function=self.embedding_function,
                 metadata={"hnsw:space": "cosine"}
             )
-            self.client.persist()
         except Exception as e:
             print(f"Error limpiando memoria: {str(e)}") 
