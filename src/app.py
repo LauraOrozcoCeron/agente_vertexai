@@ -7,17 +7,22 @@ from agent.chat_agent import GeminiAgent
 load_dotenv()
 
 def main():
-    st.title("🚕 Asistente de Análisis de Taxis NY")
+    st.title("🚕 Análisis de Taxis NY")
     
     # Sidebar con información
-    st.sidebar.title("Información")
+    st.sidebar.title("📊 Guía de Preguntas")
     st.sidebar.info("""
-    Este asistente puede responder preguntas sobre los datos de taxis amarillos de Nueva York.
+    Ejemplos de preguntas que puedes hacer:
     
-    Ejemplos de preguntas:
-    - ¿Cuál es el promedio de tarifa por viaje?
-    - ¿Cuántos viajes se realizaron ayer?
-    - ¿Cuáles son las zonas más populares?
+    💰 Tarifas y Pagos:
+    - ¿Cuál es la tarifa promedio por viaje?
+    - ¿Cuánto se gana en propinas en hora pico?
+    - ¿Cuál es el pago total promedio por viaje?
+    
+    ⏰ Tiempo y Patrones:
+    - ¿Cuáles son las horas más ocupadas?
+    - ¿Qué día de la semana hay más viajes?
+    - ¿Cuánto duran los viajes en promedio?
     """)
     
     # Botones en el sidebar
