@@ -5,3 +5,6 @@
 *.jsonl
 *.jsonl.gz
 *.jsonl.gz.part
+# Archivos de entorno
+.env
+.env.*
