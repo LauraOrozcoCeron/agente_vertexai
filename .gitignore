@@ -12,3 +12,5 @@
 
 # Base de datos de Chroma
 data/chroma_db/
+../.DS_Store
+.DS_Store
