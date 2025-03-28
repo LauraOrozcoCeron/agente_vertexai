@@ -38,38 +38,78 @@ class GeminiAgent:
         
         Base de datos disponible: {self.bq_client.project_id}.{self.bq_client.dataset_id}.{self.bq_client.table_id}
         
-        IMPORTANTE - Para consultas sobre DISTANCIAS:
-        - La columna trip_distance está en MILLAS
-        - Filtrar trip_distance > 0 para excluir errores
-        - Siempre mostrar la distancia en millas
+        IMPORTANTE - UNIDADES Y CAMPOS:
+        1. 🚕 Distancias (trip_distance):
+           - Están en MILLAS
+           - Filtrar trip_distance > 0
+           - Filtrar trip_distance < 100 para excluir valores atípicos
         
-        Puedes responder preguntas sobre:
-        1. 🚖 Viajes y tarifas:
-           - Promedios de tarifas por hora/día (USD)
-           - Duración de viajes (minutos)
-           - Distancias recorridas (millas)
-           - Propinas y pagos totales (USD)
+        2. 💰 Tarifas y Pagos:
+           - fare_amount: tarifa base en USD
+           - tip_amount: propina en USD
+           - total_amount: pago total en USD
         
-        2. ⏰ Patrones temporales:
-           - Horas pico
-           - Tendencias por día de la semana
-           - Comparativas por mes
+        3. ⏰ Campos de Tiempo:
+           - pickup_datetime: fecha y hora de inicio
+           - dropoff_datetime: fecha y hora de fin
+           - EXTRACT(HOUR FROM pickup_datetime) para hora del día
+           - EXTRACT(DAYOFWEEK FROM pickup_datetime) para día de la semana (1=Domingo)
         
-        Para preguntas sobre distancia máxima, usa esta estructura:
+        EJEMPLOS DE CONSULTAS CORRECTAS:
+
+        1. Para tarifas por hora:
         ```sql
         SELECT 
-            trip_distance as distancia_millas,
-            pickup_datetime,
-            dropoff_datetime,
-            fare_amount as tarifa_usd
+            EXTRACT(HOUR FROM pickup_datetime) as hora,
+            COUNT(*) as total_viajes,
+            ROUND(AVG(fare_amount), 2) as tarifa_promedio,
+            ROUND(AVG(tip_amount), 2) as propina_promedio
         FROM {self.bq_client.project_id}.{self.bq_client.dataset_id}.{self.bq_client.table_id}
-        WHERE 
-            trip_distance > 0
-            AND trip_distance < 100  -- Filtrar valores atípicos extremos
+        WHERE pickup_datetime >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY)
+        GROUP BY hora
+        ORDER BY hora
+        ```
+
+        2. Para análisis por día:
+        ```sql
+        SELECT 
+            CASE EXTRACT(DAYOFWEEK FROM pickup_datetime)
+                WHEN 1 THEN 'Domingo'
+                WHEN 2 THEN 'Lunes'
+                WHEN 3 THEN 'Martes'
+                WHEN 4 THEN 'Miércoles'
+                WHEN 5 THEN 'Jueves'
+                WHEN 6 THEN 'Viernes'
+                WHEN 7 THEN 'Sábado'
+            END as dia_semana,
+            COUNT(*) as total_viajes,
+            ROUND(AVG(trip_distance), 2) as distancia_promedio,
+            ROUND(AVG(total_amount), 2) as ingreso_promedio
+        FROM {self.bq_client.project_id}.{self.bq_client.dataset_id}.{self.bq_client.table_id}
+        GROUP BY dia_semana
+        ORDER BY MIN(EXTRACT(DAYOFWEEK FROM pickup_datetime))
+        ```
+
+        3. Para distancias máximas:
+        ```sql
+        SELECT 
+            ROUND(trip_distance, 2) as distancia_millas,
+            ROUND(fare_amount, 2) as tarifa_usd,
+            pickup_datetime,
+            EXTRACT(HOUR FROM pickup_datetime) as hora
+        FROM {self.bq_client.project_id}.{self.bq_client.dataset_id}.{self.bq_client.table_id}
+        WHERE trip_distance > 0 AND trip_distance < 100
         ORDER BY trip_distance DESC
         LIMIT 5
         ```
 
+        REGLAS IMPORTANTES:
+        1. SIEMPRE usa el nombre completo de la tabla
+        2. NO uses LIMIT en medio de la consulta, solo al final
+        3. Usa GROUP BY con los campos exactos del SELECT
+        4. ROUND los valores numéricos a 2 decimales
+        5. Incluye filtros WHERE apropiados
+        
         NO agregues ningún texto adicional antes o después de la consulta SQL.
         """
 
@@ -172,23 +212,30 @@ class GeminiAgent:
             
             # Generar interpretación de resultados
             interpretation_prompt = f"""
-            Como analista de datos de taxis de NY, interpreta estos resultados sobre distancias: {results}
+            Como analista de datos de taxis de NY, interpreta estos resultados: {results}
             
             REGLAS:
             1. DEBES usar EXACTAMENTE este formato:
-            📊 [Distancia] millas en el viaje más largo
-            📝 [Contexto sobre cuándo ocurrió y detalles relevantes]
+            📊 [Dato principal con números y unidades]
+            📝 [Contexto o explicación relevante]
             
             2. Usa las unidades correctas:
-               - SIEMPRE especifica las distancias en MILLAS
-               - Incluye la fecha/hora del viaje en el contexto
-               - Menciona la tarifa si está disponible
+               - Distancias en MILLAS
+               - Dinero en USD
+               - Tiempo en horas/minutos
+               - Conteos en número de viajes
             
             3. La explicación debe ser informativa pero breve
             
-            Ejemplo de formato:
-            📊 La distancia máxima registrada fue 45.8 millas
-            📝 Este viaje ocurrió el 15 de marzo a las 14:30, con una tarifa de $120.50 USD
+            Ejemplos de formato:
+            📊 El promedio de viajes los lunes es 15,230 viajes
+            📝 Esto representa un 20% más que los fines de semana
+            
+            📊 La tarifa promedio en hora pico es $25.50 USD
+            📝 Las tarifas son 30% más altas entre 5-7 PM
+            
+            📊 La distancia promedio es 3.2 millas por viaje
+            📝 90% de los viajes son menores a 5 millas
             """
             
             interpretation = self.llm.invoke([
